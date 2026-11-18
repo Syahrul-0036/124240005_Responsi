@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/products.dart';
 
-// Kartu karakter yang dipakai ulang oleh daftar Home dan Favorite.
+// Product card reused by the catalog and wishlist.
 class ProductsTitle extends StatelessWidget {
   const ProductsTitle({
     required this.products,
@@ -34,7 +34,7 @@ class ProductsTitle extends StatelessWidget {
               return const SizedBox(
                 width: 56,
                 height: 56,
-                child: CircleAvatar(child: Icon(Icons.person)),
+                child: CircleAvatar(child: Icon(Icons.shopping_bag_outlined)),
               );
             },
           ),
@@ -45,12 +45,18 @@ class ProductsTitle extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
+        subtitle: Text(
+          '${products.category.replaceAll('-', ' ')} · '
+          '\$${products.price.toStringAsFixed(2)}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         trailing: IconButton(
           tooltip: isWishlist ? 'Hapus Wishlist' : 'Tambah Wishlist',
           onPressed: onWishlistPressed,
           icon: Icon(
             isWishlist ? Icons.favorite : Icons.favorite_border,
-            color: isWishlist ? Colors.red : null,
+            color: isWishlist ? Colors.green : null,
           ),
         ),
         onTap: onTap,

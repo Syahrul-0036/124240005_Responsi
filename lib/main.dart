@@ -1,21 +1,28 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 
 import 'screens/login.dart';
 import 'screens/main_screen.dart';
 import 'services/session_service.dart';
 
-void main() {
-  runApp(const RickAndMortyApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (kIsWeb) {
+    databaseFactory = databaseFactoryFfiWeb;
+  }
+  runApp(const ShoppingHubApp());
 }
 
-// Widget utama menyiapkan tema dan memeriksa sesi sebelum membuka halaman.
-class RickAndMortyApp extends StatelessWidget {
-  const RickAndMortyApp({super.key});
+// Set up the app theme and open the correct screen for the saved session.
+class ShoppingHubApp extends StatelessWidget {
+  const ShoppingHubApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Rick & Morty Character Explorer',
+      title: 'ShoppingHub',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(

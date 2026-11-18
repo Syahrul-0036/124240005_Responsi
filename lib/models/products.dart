@@ -1,4 +1,4 @@
-// Model karakter menyimpan data yang dipakai oleh daftar dan halaman detail.
+// Product data shared by the catalog, detail, and wishlist screens.
 class Products {
   const Products({
     required this.id,
@@ -17,39 +17,59 @@ class Products {
   final String title;
   final String description;
   final String category;
-  final bool price;
-  final bool discountPercentage;
-  final bool rating;
+  final double price;
+  final double discountPercentage;
+  final double rating;
   final int stock;
   final String image;
   final String brand;
 
-  // Mengubah data JSON dari API atau penyimpanan lokal menjadi Character.
+  // Convert API and locally stored JSON into a product.
   factory Products.fromJson(Map<String, dynamic> json) {
     return Products(
-      id: json['id'] as int,
+      id: (json['id'] as num).toInt(),
       title: json['title'] as String? ?? 'Unknown',
+      description: json['description'] as String? ?? '',
       category: json['category'] as String? ?? 'unknown',
-      image: json['image'] as String? ?? '',
-      price: json['price'] as bool,
-      description: json['description'],
-      discountPercentage: json['discountPercentage'],
-      rating: json['rating'],
-      stock: json['stock'],
-      brand: json['brand'],
+      image: _imageFromJson(json),
+      price: (json['price'] as num?)?.toDouble() ?? 0,
+      discountPercentage:
+          (json['discountPercentage'] as num?)?.toDouble() ?? 0,
+      rating: (json['rating'] as num?)?.toDouble() ?? 0,
+      stock: (json['stock'] as num?)?.toInt() ?? 0,
+      brand: json['brand'] as String? ?? 'Unknown',
     );
   }
 
-  // JSON sederhana ini digunakan agar favorit tetap tersimpan setelah aplikasi ditutup.
+  static String _imageFromJson(Map<String, dynamic> json) {
+    final thumbnail = json['thumbnail'];
+    if (thumbnail is String) return thumbnail;
+
+    final image = json['image'];
+    if (image is String) return image;
+
+    final images = json['images'];
+    if (images is List) {
+      for (final image in images) {
+        if (image is String) return image;
+      }
+    }
+    return '';
+  }
+
+  // Keep the complete product when persisting favorites locally.
   Map<String, dynamic> toJson() {
     return {
       'id': id,
       'title': title,
+      'description': description,
       'category': category,
       'image': image,
       'price': price,
+      'discountPercentage': discountPercentage,
+      'rating': rating,
+      'stock': stock,
+      'brand': brand,
     };
   }
-
-  static map(Function(Products) param0) {}
 }

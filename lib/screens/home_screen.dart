@@ -4,11 +4,9 @@ import 'package:shoppinghub/widgets/products_title.dart';
 import '../models/products.dart';
 import '../services/api_service.dart';
 import '../services/wishlist_service.dart';
-// ignore: unused_import
-import '../widgets/products_tile.dart';
 import 'detail_screen.dart';
 
-// Home menampilkan karakter API dengan filter, pencarian, dan kontrol favorit.
+// Home displays searchable products and their favorite controls.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({required this.refreshKey, super.key});
 
@@ -21,14 +19,19 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
   List<Products> _products = [];
+  List<String> _categories = [];
   Set<int> _wishlistIds = {};
+  String? _selectedCategory;
   bool _isLoading = true;
+  bool _isLoadingCategories = true;
   String? _errorMessage;
+  String? _categoryError;
 
   @override
   void initState() {
     super.initState();
     _loadProducts();
+    _loadCategories();
     _loadWishlist();
   }
 
@@ -47,45 +50,86 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  // Meminta data karakter sesuai status dan teks pencarian yang sedang dipilih.
   Future<void> _loadProducts() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
     try {
-      final Products = await ApiService.getCharacters(
-        title: _searchController.text,
+      final products = await ApiService.getProducts(
+        query: _searchController.text,
+        category: _selectedCategory,
       );
       if (!mounted) return;
       setState(() {
-        _products = Products;
+        _products = products;
         _isLoading = false;
       });
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Tidak dapat memuat karakter: $error';
+        _errorMessage = 'Tidak dapat memuat produk: $error';
         _isLoading = false;
       });
     }
   }
 
-  // Memuat id favorit lokal agar ikon semua kartu bisa diperbarui.
-  Future<void> _loadWishlist() async {
-    final wishlist = await WishlistService.getWishlist();
-    if (!mounted) return;
+  Future<void> _loadCategories() async {
     setState(() {
-      _wishlistIds = wishlist.map((Products) => Products.id).toSet();
+      _isLoadingCategories = true;
+      _categoryError = null;
     });
+    try {
+      final categories = await ApiService.getCategories();
+      if (!mounted) return;
+      setState(() {
+        _categories = categories;
+        _isLoadingCategories = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _categoryError = 'Kategori tidak dapat dimuat: $error';
+        _isLoadingCategories = false;
+      });
+    }
   }
 
-  // Menyimpan perubahan favorit lalu memperbarui ikon kartu.
+  Future<void> _loadWishlist() async {
+    try {
+      final wishlist = await WishlistService.getWishlist();
+      if (!mounted) return;
+      setState(() {
+        _wishlistIds = wishlist.map((product) => product.id).toSet();
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Wishlist tidak dapat dimuat: $error'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+    }
+  }
+
   Future<void> _toggleWishlist(Products products) async {
-    final isAdded = await WishlistService.toggleWishlist(products);
+    final bool isAdded;
+    try {
+      isAdded = await WishlistService.toggleWishlist(products);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Wishlist tidak dapat diperbarui: $error'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+      return;
+    }
     if (!mounted) return;
     setState(() {
-      if (isAdded != null) {
+      if (isAdded) {
         _wishlistIds.add(products.id);
       } else {
         _wishlistIds.remove(products.id);
@@ -94,15 +138,15 @@ class _HomeScreenState extends State<HomeScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          isAdded != null
+          isAdded
               ? '${products.title} ditambahkan ke favorit'
               : '${products.title} dihapus dari favorit',
         ),
+        backgroundColor: isAdded ? Colors.green.shade700 : Colors.red.shade700,
       ),
     );
   }
 
-  // Menunggu detail ditutup, lalu memuat ulang favorit dari SharedPreferences.
   Future<void> _openDetail(Products products) async {
     await Navigator.push(
       context,
@@ -137,16 +181,67 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
-        SizedBox(
-          height: 46,
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            scrollDirection: Axis.horizontal,
-          ),
-        ),
+        _buildCategoryFilter(),
         const SizedBox(height: 8),
         Expanded(child: _buildCharacterList()),
       ],
+    );
+  }
+
+  Widget _buildCategoryFilter() {
+    if (_isLoadingCategories) {
+      return const SizedBox(
+        height: 46,
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+    if (_categoryError != null) {
+      return SizedBox(
+        height: 46,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Flexible(
+              child: Text(
+                _categoryError!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            TextButton(
+              onPressed: _loadCategories,
+              child: const Text('Coba lagi'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 46,
+      child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        scrollDirection: Axis.horizontal,
+        children: [
+          _categoryChip(null, 'Semua'),
+          for (final category in _categories)
+            _categoryChip(category, category.replaceAll('-', ' ')),
+        ],
+      ),
+    );
+  }
+
+  Widget _categoryChip(String? category, String label) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: _selectedCategory == category,
+        onSelected: (_) {
+          setState(() => _selectedCategory = category);
+          _loadProducts();
+        },
+      ),
     );
   }
 
@@ -180,12 +275,12 @@ class _HomeScreenState extends State<HomeScreen> {
     return ListView.builder(
       itemCount: _products.length,
       itemBuilder: (context, index) {
-        final Products = _products[index];
+        final product = _products[index];
         return ProductsTitle(
-          products: Products,
-          isWishlist: _wishlistIds.contains(Products.id),
-          onWishlistPressed: () => _toggleWishlist(Products),
-          onTap: () => _openDetail(Products),
+          products: product,
+          isWishlist: _wishlistIds.contains(product.id),
+          onWishlistPressed: () => _toggleWishlist(product),
+          onTap: () => _openDetail(product),
         );
       },
     );

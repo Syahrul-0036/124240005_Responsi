@@ -16,7 +16,7 @@ class DbHelper {
     final path = join(databasePath, 'rick_morty_explorer.db');
     _database = await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (database, version) async {
         await database.execute('''
           CREATE TABLE users (
@@ -25,9 +25,24 @@ class DbHelper {
             password TEXT NOT NULL
           )
         ''');
+        await _createWishlistTable(database);
+      },
+      onUpgrade: (database, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await _createWishlistTable(database);
+        }
       },
     );
     return _database!;
+  }
+
+  Future<void> _createWishlistTable(Database database) {
+    return database.execute('''
+      CREATE TABLE wishlist_products (
+        product_id INTEGER PRIMARY KEY,
+        product_json TEXT NOT NULL
+      )
+    ''');
   }
 
   // Memastikan nama pengguna belum pernah didaftarkan.

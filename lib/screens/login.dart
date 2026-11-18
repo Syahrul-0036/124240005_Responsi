@@ -82,7 +82,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Rick & Morty\nCharacter Explorer',
+                    'ShoppingHub',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineSmall
                         ?.copyWith(fontWeight: FontWeight.bold),

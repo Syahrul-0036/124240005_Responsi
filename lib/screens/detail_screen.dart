@@ -4,7 +4,7 @@ import '../models/products.dart';
 import '../services/api_service.dart';
 import '../services/wishlist_service.dart';
 
-// DetailScreen mengambil data lengkap karakter dan menyediakan tombol favorit.
+// Loads product details and provides a favorite toggle.
 class DetailScreen extends StatefulWidget {
   const DetailScreen({required this.productId, super.key});
 
@@ -20,26 +20,23 @@ class _DetailScreenState extends State<DetailScreen> {
   bool _isLoading = true;
   String? _errorMessage;
 
-  String? get image => null;
-
   @override
   void initState() {
     super.initState();
-    _loadCharacter();
+    _loadProduct();
   }
 
-  // Mengambil informasi terbaru karakter dan status favorit lokalnya.
-  Future<void> _loadCharacter() async {
+  Future<void> _loadProduct() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
     try {
-      final Products = await ApiService.getCharacter(widget.productId);
-      final isWishlist = await WishlistService.isWishlist(Products.id);
+      final product = await ApiService.getProduct(widget.productId);
+      final isWishlist = await WishlistService.isWishlist(product.id);
       if (!mounted) return;
       setState(() {
-        _products = Products;
+        _products = product;
         _isWishlist = isWishlist;
         _isLoading = false;
       });
@@ -52,19 +49,31 @@ class _DetailScreenState extends State<DetailScreen> {
     }
   }
 
-  // Mengubah favorit dan memberi umpan balik melalui Snackbar.
   Future<void> _toggleFavorite() async {
-    final Products = _products;
-    if (Products == null) return;
-    final isAdded = await WishlistService.toggleFavorite(Products);
+    final product = _products;
+    if (product == null) return;
+    final bool isAdded;
+    try {
+      isAdded = await WishlistService.toggleFavorite(product);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Wishlist tidak dapat diperbarui: $error'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+      return;
+    }
     if (!mounted) return;
     setState(() => _isWishlist = isAdded);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
+        backgroundColor: isAdded ? Colors.green.shade700 : Colors.red.shade700,
         content: Text(
           isAdded
-              ? '${Products.title} ditambahkan ke favorit'
-              : '${Products.title} dihapus dari favorit',
+              ? '${product.title} ditambahkan ke favorit'
+              : '${product.title} dihapus dari favorit',
         ),
       ),
     );
@@ -82,7 +91,7 @@ class _DetailScreenState extends State<DetailScreen> {
               onPressed: _toggleFavorite,
               icon: Icon(
                 _isWishlist ? Icons.favorite : Icons.favorite_border,
-                color: _isWishlist ? Colors.red : null,
+                color: _isWishlist ? Colors.green : null,
               ),
             ),
         ],
@@ -91,7 +100,6 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  // Menampilkan indikator, pesan error, atau informasi karakter lengkap.
   Widget _buildBody() {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -106,7 +114,7 @@ class _DetailScreenState extends State<DetailScreen> {
               child: Text(_errorMessage!, textAlign: TextAlign.center),
             ),
             FilledButton(
-              onPressed: _loadCharacter,
+              onPressed: _loadProduct,
               child: const Text('Coba Lagi'),
             ),
           ],
@@ -114,8 +122,10 @@ class _DetailScreenState extends State<DetailScreen> {
       );
     }
 
-    // ignore: unused_local_variable
-    final products = _products;
+    final product = _products;
+    if (product == null) {
+      return const Center(child: Text('Detail produk tidak tersedia.'));
+    }
 
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -123,43 +133,50 @@ class _DetailScreenState extends State<DetailScreen> {
         ClipRRect(
           borderRadius: BorderRadius.circular(24),
           child: Image.network(
-            image!,
+            product.image,
             height: 300,
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) {
               return const SizedBox(
                 height: 300,
-                child: Center(child: Icon(Icons.person, size: 80)),
+                child: Center(
+                  child: Icon(Icons.shopping_bag_outlined, size: 80),
+                ),
               );
             },
           ),
         ),
         const SizedBox(height: 20),
         Text(
-          Products.title,
+          product.title,
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.headlineSmall
               ?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        _detailRow('title', Products.title),
-        _detailRow('category', Products.category),
-        _detailRow('brand', Products.brand),
-        _detailRow('price', Products.price),
-        _detailRow('rating', Products.rating),
+        _detailRow('Category', product.category),
+        if (product.brand.isNotEmpty && product.brand != 'Unknown')
+          _detailRow('Brand', product.brand),
+        _detailRow('Price', '\$${product.price.toStringAsFixed(2)}'),
+        _detailRow('Rating', product.rating.toStringAsFixed(1)),
+        _detailRow('Description', product.description),
+        _detailRow(
+          'Discount',
+          '${product.discountPercentage.toStringAsFixed(2)}%',
+        ),
+        _detailRow('Stock', '${product.stock} items'),
       ],
     );
   }
 
-  // Baris label dan nilai agar informasi detail mudah dibaca.
-  Widget _detailRow(String label, String value, [Color? valueColor]) {
+  Widget _detailRow(String label, String value) {
     return Card(
       child: ListTile(
         title: Text(label, style: const TextStyle(color: Colors.grey)),
         subtitle: Text(
           value,
           style: TextStyle(
-            color: valueColor ?? Theme.of(context).colorScheme.onSurface,
+            color: Theme.of(context).colorScheme.onSurface,
             fontSize: 16,
           ),
         ),

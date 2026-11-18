@@ -95,10 +95,6 @@ class _MainScreenState extends State<MainScreen> {
             icon: Icon(Icons.favorite_border),
             label: 'Favorite',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.movie_outlined),
-            label: 'Episode',
-          ),
         ],
       ),
     );

@@ -1,63 +1,90 @@
 import 'dart:convert';
 
-import 'package:shared_preferences/shared_preferences.dart';
-
 import '../models/products.dart';
+import 'db_helper.dart';
 
-// Menyimpan daftar karakter favorit sebagai satu nilai JSON di SharedPreferences.
+// Store complete favorite product data in the local SQLite database.
 class WishlistService {
-  static const String _favoritesKey = 'Wishlis_Products';
-
-  static String? get _wishlistesKey => null;
-
   static Future<List<Products>> getWishlist() async {
-    final preferences = await SharedPreferences.getInstance();
-    final savedWishlistes = preferences.getString(_wishlistesKey!);
-    if (savedWishlistes == null || savedWishlistes.isEmpty) {
-      return [];
-    }
-
-    final decodedFavorites = jsonDecode(savedWishlistes) as List<dynamic>;
-    return decodedFavorites
-        .map((item) => Products.fromJson(item as Map<String, dynamic>))
+    final database = await DbHelper.instance.database;
+    final rows = await database.query(
+      'wishlist_products',
+      orderBy: 'product_id',
+    );
+    return rows
+        .map(
+          (row) => Products.fromJson(
+            jsonDecode(row['product_json'] as String) as Map<String, dynamic>,
+          ),
+        )
         .toList();
   }
 
-  static Future<void> saveFavorites(List<Products> characters) async {
-    final preferences = await SharedPreferences.getInstance();
-    final jsonProducts = Products.map((Products) => Products.toJson()).toList();
-    await preferences.setString(_favoritesKey, jsonEncode(jsonProducts));
+  static Future<void> saveFavorites(List<Products> products) async {
+    final database = await DbHelper.instance.database;
+    await database.transaction((transaction) async {
+      await transaction.delete('wishlist_products');
+      for (final product in products) {
+        await transaction.insert('wishlist_products', {
+          'product_id': product.id,
+          'product_json': jsonEncode(product.toJson()),
+        });
+      }
+    });
   }
 
   static Future<bool> isWishlist(int productId) async {
-    final favorites = await getWishlist();
-    return favorites.any((Products) => Products.id == productId);
+    final database = await DbHelper.instance.database;
+    final rows = await database.query(
+      'wishlist_products',
+      columns: ['product_id'],
+      where: 'product_id = ?',
+      whereArgs: [productId],
+      limit: 1,
+    );
+    return rows.isNotEmpty;
   }
 
-  // Menambah atau menghapus karakter lalu menyimpan daftar yang baru.
   static Future<bool> toggleFavorite(Products products) async {
-    final favorites = await getWishlist();
-    final alreadyFavorite = favorites.any(
-      (favorite) => favorite.id == products.id,
-    );
-    if (alreadyFavorite) {
-      favorites.removeWhere((favorite) => favorite.id == products.id);
-    } else {
-      favorites.add(products);
-    }
-    await saveFavorites(favorites);
-    return !alreadyFavorite;
+    final database = await DbHelper.instance.database;
+    return database.transaction((transaction) async {
+      final rows = await transaction.query(
+        'wishlist_products',
+        columns: ['product_id'],
+        where: 'product_id = ?',
+        whereArgs: [products.id],
+        limit: 1,
+      );
+      if (rows.isNotEmpty) {
+        await transaction.delete(
+          'wishlist_products',
+          where: 'product_id = ?',
+          whereArgs: [products.id],
+        );
+        return false;
+      }
+      await transaction.insert('wishlist_products', {
+        'product_id': products.id,
+        'product_json': jsonEncode(products.toJson()),
+      });
+      return true;
+    });
   }
 
   static Future<void> removeFavorite(int productsId) async {
-    final wishlist = await getWishlist();
-    wishlist.removeWhere((Products) => Products.id == productsId);
-    await saveFavorites(wishlist);
+    final database = await DbHelper.instance.database;
+    await database.delete(
+      'wishlist_products',
+      where: 'product_id = ?',
+      whereArgs: [productsId],
+    );
   }
 
-  static Future<Object?> toggleWishlist(Products products) async {
-    return null;
+  static Future<bool> toggleWishlist(Products products) {
+    return toggleFavorite(products);
   }
 
-  static Future<void> removeWishlist(int id) async {}
+  static Future<void> removeWishlist(int id) {
+    return removeFavorite(id);
+  }
 }
